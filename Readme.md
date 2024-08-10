@@ -164,6 +164,6 @@ $$ LANGUAGE plpgsql;
 
 
 -- Запуск прцедуры для обновления количества товара на складе после создания нового заказа
-CALL update_stock(300);
+CALL update_stock(3);
 select * from products;
 ```
