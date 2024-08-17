@@ -138,32 +138,43 @@ $$ LANGUAGE plpgsql;
 -- Запуск функции для получения общей суммы продаж по категориям товаров за определенный период
 SELECT get_orders_sum_by_categories_for_date_interval(DATE('2023-01-01'), DATE('2024-01-01'));
 
+
+INSERT INTO
+	order_details (order_id, product_id, quantity, unit_price)
+VALUES
+  (1, 1, 2, 40.56),
+  (1, 2, 1, 5)
+;
+
+
 -- Создание процедуры для обновления количества товара на складе после создания нового заказа
 CREATE PROCEDURE update_stock(orderid INT)
 AS $$
 BEGIN
-  UPDATE products 
-  SET stock = stock - 
-  (
-  select order_details.quantity from order_details
-  WHERE order_details.order_id = orderid
-  )
-  WHERE product_id = (
-  select od.product_id from order_details As od
-  WHERE od.order_id = orderid
-  );
-exception 
-       	when undefined_column then
-       	RAISE NOTICE 'Код ошибки: %', SQLSTATE;
-       	RAISE;
-       	WHEN OTHERS THEN
-		RAISE NOTICE 'Код ошибки: %', SQLSTATE;
-		RAISE NOTICE 'Причина ошибки: %', SQLERRM;
+IF EXISTS (SELECT product_id FROM order_details as od WHERE od.order_id = orderid) THEN
+    CREATE TEMP TABLE temp_table as 
+	select
+		pr.product_id as product_id, 
+	SUM(od.quantity) as summa
+	FROM
+		order_details as od
+	inner Join products 
+		as pr on pr.product_id = od.product_id
+		where od.order_id = orderid
+		group by pr.product_id;
+	ELSE
+      RAISE EXCEPTION USING ERRCODE = 70001,
+      MESSAGE = 'Заказа с таким ID не существует!!!'; 
+END IF;
+UPDATE products
+SET
+  stock = stock - temp_table.summa
+FROM temp_table 
+WHERE products.product_id = temp_table.product_id;  
 END;
 $$ LANGUAGE plpgsql;
 
+CALL update_stock(1);
 
--- Запуск прцедуры для обновления количества товара на складе после создания нового заказа
-CALL update_stock(300);
 select * from products;
 ```
